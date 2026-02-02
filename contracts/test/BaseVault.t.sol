@@ -38,4 +38,26 @@ contract BaseVaultTest is Test {
         assertEq(usdc.balanceOf(address(vault)), 300_000);
          vm.stopPrank();
     }
+
+
+    function testRedeem()public{
+        vm.startPrank(user);
+        usdc.approve(address(vault), 500_000);
+        vault.deposit(400_000, user);
+        assertEq(vault.balanceOf(user), 400_000);
+        assertEq(usdc.balanceOf(address(vault)), 400_000);
+        vault.redeem(100_000, user, user);
+        assertEq(vault.balanceOf(user), 300_000);
+        assertEq(usdc.balanceOf(address(vault)), 300_000);
+         vm.stopPrank();
+    }
+
+    function testMint() public {
+        vm.startPrank(user);
+        usdc.approve(address(vault), type(uint256).max);
+        vault.mint(500_000, user);
+        assertEq(vault.balanceOf(user), 500_000);
+        assertEq(usdc.balanceOf(address(vault)), 500_000);
+        vm.stopPrank();
+    }
 }
