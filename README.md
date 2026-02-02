@@ -227,6 +227,5 @@ This project is for educational purposes only.
 Not audited. Do not use in production with real funds.
 
 👨‍💻 Author
-Built as a deep dive into DeFi protocol engineering and structured yield systems.
-
+Chobbar honi
 ```
