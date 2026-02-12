@@ -32,4 +32,13 @@ contract MockStrategy {
         MockUSDC(address(asset)).mint(address(this), amount);
         totalManaged += amount;
     }
+
+    function addLoss(uint256 amount) external {
+    require(totalManaged >= amount, "Too much loss");
+
+    totalManaged -= amount;
+
+    // simulate real loss by burning tokens
+    MockUSDC(address(asset)).burn(address(this), amount);
+}
 }
