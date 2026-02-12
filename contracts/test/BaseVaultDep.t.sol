@@ -79,4 +79,33 @@ contract BaseVaultTest is Test {
         uint256 expectedProfit = 50_000 ether;
         assertGe(finalBalance, initialBalance + expectedProfit - 1);
     }
+
+    function testSharePriceDecreasesAfterLoss() public {
+        vm.startPrank(user);
+
+        usdc.approve(address(vault), type(uint256).max);
+        vault.deposit(100_000 ether, user);
+
+        vm.stopPrank();
+
+        // simulate loss
+        strategy.addLoss(20_000 ether);
+
+        uint256 assetsAfterLoss = vault.totalAssets();
+
+        assertEq(assetsAfterLoss, 80_000 ether);
+
+        vm.startPrank(user);
+
+        uint256 shares = vault.balanceOf(user);
+        vault.redeem(shares, user, user);
+
+        uint256 finalBalance = usdc.balanceOf(user);
+
+        // user should receive approx 80,000
+        uint256 expectedFinalBalance = 980_000 ether;
+        assertApproxEqAbs(finalBalance, expectedFinalBalance, 1);
+
+        vm.stopPrank();
+    }
 }
