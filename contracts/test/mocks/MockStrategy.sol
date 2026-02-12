@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {MockUSDC} from "./mockUSDC.sol";
 
 contract MockStrategy {
     IERC20 public immutable asset;
@@ -28,6 +29,7 @@ contract MockStrategy {
 
     //simulating yield to fluctuate price, now only price increases
     function addYield(uint256 amount) external {
+        MockUSDC(address(asset)).mint(address(this), amount);
         totalManaged += amount;
     }
 }
