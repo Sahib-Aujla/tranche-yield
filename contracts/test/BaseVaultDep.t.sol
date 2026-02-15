@@ -14,6 +14,8 @@ contract BaseVaultTest is Test {
     BaseVault vault;
     MockUSDC usdc;
     MockStrategy strategy;
+    MockStrategy strategy2;
+
 
     address user = address(1);
 
