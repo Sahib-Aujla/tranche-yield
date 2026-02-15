@@ -1,44 +1,105 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity ^0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./strategies/AaveStrategy.sol";
+import "./interfaces/IStrategy.sol";
 
 contract BaseVault is ERC4626, Ownable {
-    AaveStrategy public strategy;
+    uint256 public constant MAX_BPS = 10_000;
 
-    constructor(IERC20 _asset, address _strategy)
+    IStrategy[] public strategies;
+    uint256[] public weights; // basis points (10000 = 100%)
+
+    constructor(
+        IERC20 _asset,
+        IStrategy[] memory _strategies,
+        uint256[] memory _weights
+    )
         ERC20("Tranche Vault Share", "TVS")
         ERC4626(_asset)
         Ownable(msg.sender)
     {
-        strategy = AaveStrategy(_strategy);
+        require(_strategies.length == _weights.length, "Length mismatch");
+
+        uint256 totalWeight;
+
+        for (uint256 i = 0; i < _weights.length; i++) {
+            totalWeight += _weights[i];
+        }
+
+        require(totalWeight == MAX_BPS, "Weights must equal 100%");
+
+        strategies = _strategies;
+        weights = _weights;
     }
 
-    /// @dev Override deposit logic
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        // 1️⃣ Transfer + mint (standard behavior)
+    /*//////////////////////////////////////////////////////////////
+                        DEPOSIT LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
         super._deposit(caller, receiver, assets, shares);
 
-        // 2️⃣ Invest into strategy
-        IERC20(asset()).approve(address(strategy), assets);
-        strategy.deposit(assets);
+        // Allocate across strategies based on weights
+        for (uint256 i = 0; i < strategies.length; i++) {
+            uint256 allocation = (assets * weights[i]) / MAX_BPS;
+
+            if (allocation > 0) {
+                IERC20(asset()).approve(address(strategies[i]), allocation);
+                strategies[i].deposit(allocation);
+            }
+        }
     }
 
-    /// @dev Override withdraw logic
-    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares)
-        internal
-        override
-    {
-        // 1️⃣ Pull funds back from strategy first
-        strategy.withdraw(assets);
+    /*//////////////////////////////////////////////////////////////
+                        WITHDRAW LOGIC
+    //////////////////////////////////////////////////////////////*/
 
-        // 2️⃣ Then burn shares + transfer to user
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+
+        // Pull proportionally from strategies
+        for (uint256 i = 0; i < strategies.length; i++) {
+            uint256 allocation = (assets * weights[i]) / MAX_BPS;
+
+            if (allocation > 0) {
+                strategies[i].withdraw(allocation);
+            }
+        }
+
         super._withdraw(caller, receiver, owner, assets, shares);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        ACCOUNTING
+    //////////////////////////////////////////////////////////////*/
+
     function totalAssets() public view override returns (uint256) {
-        return IERC20(asset()).balanceOf(address(this)) + strategy.totalAssets();
+        uint256 total = IERC20(asset()).balanceOf(address(this));
+
+        for (uint256 i = 0; i < strategies.length; i++) {
+            total += strategies[i].totalAssets();
+        }
+
+        return total;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        VIEW HELPERS
+    //////////////////////////////////////////////////////////////*/
+
+    function strategyCount() external view returns (uint256) {
+        return strategies.length;
     }
 }
