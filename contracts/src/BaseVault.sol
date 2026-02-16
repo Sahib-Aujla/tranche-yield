@@ -11,11 +11,7 @@ contract BaseVault is ERC4626, Ownable {
     IStrategy[] public strategies;
     uint256[] public weights; // basis points (10000 = 100%)
 
-    constructor(
-        IERC20 _asset,
-        IStrategy[] memory _strategies,
-        uint256[] memory _weights
-    )
+    constructor(IERC20 _asset, IStrategy[] memory _strategies, uint256[] memory _weights)
         ERC20("Tranche Vault Share", "TVS")
         ERC4626(_asset)
         Ownable(msg.sender)
@@ -38,12 +34,7 @@ contract BaseVault is ERC4626, Ownable {
                         DEPOSIT LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function _deposit(
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 shares
-    ) internal override {
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
         super._deposit(caller, receiver, assets, shares);
 
         // Allocate across strategies based on weights
@@ -61,20 +52,32 @@ contract BaseVault is ERC4626, Ownable {
                         WITHDRAW LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function _withdraw(
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets,
-        uint256 shares
-    ) internal override {
+    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares)
+        internal
+        override
+    {
+        uint256 total = totalAssets();
+        uint256 len = strategies.length;
 
-        // Pull proportionally from strategies
-        for (uint256 i = 0; i < strategies.length; i++) {
-            uint256 allocation = (assets * weights[i]) / MAX_BPS;
+        uint256 totalPulled;
 
-            if (allocation > 0) {
-                strategies[i].withdraw(allocation);
+        for (uint256 i = 0; i < len; i++) {
+            uint256 stratAssets = strategies[i].totalAssets();
+
+            if (stratAssets == 0) continue;
+
+            uint256 portion;
+
+            if (i == len - 1) {
+                // Last strategy pulls remainder
+                portion = assets - totalPulled;
+            } else {
+                portion = (assets * stratAssets) / total;
+                totalPulled += portion;
+            }
+
+            if (portion > 0) {
+                strategies[i].withdraw(portion);
             }
         }
 
