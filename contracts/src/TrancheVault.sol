@@ -206,10 +206,10 @@ contract TrancheVault is Ownable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     function _mint(address token, address to, uint256 amount) internal {
-        ERC20(token).transfer(to, amount);
+        TrancheToken(token).mint(to, amount);
     }
 
     function _burn(address token, address from, uint256 amount) internal {
-        ERC20(token).transferFrom(from, address(this), amount);
+        TrancheToken(token).burn(from, amount);
     }
 }
