@@ -40,12 +40,9 @@ contract TrancheVault is Ownable, ReentrancyGuard {
                                 CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address _asset,
-        address _baseVault,
-        uint256 _epochDuration,
-        uint256 _seniorReturnBps
-    ) Ownable(msg.sender) {
+    constructor(address _asset, address _baseVault, uint256 _epochDuration, uint256 _seniorReturnBps)
+        Ownable(msg.sender)
+    {
         require(_asset != address(0), "Invalid asset");
         require(_baseVault != address(0), "Invalid vault");
         require(_seniorReturnBps <= MAX_BPS, "Invalid BPS");
@@ -55,10 +52,25 @@ contract TrancheVault is Ownable, ReentrancyGuard {
         epochDuration = _epochDuration;
         seniorReturnBps = _seniorReturnBps;
 
-        seniorToken = new TrancheToken("Senior Tranche Token", "SENIOR",address(this));
-        juniorToken = new TrancheToken("Junior Tranche Token", "JUNIOR",address(this));
+        seniorToken = new TrancheToken("Senior Tranche Token", "SENIOR", address(this));
+        juniorToken = new TrancheToken("Junior Tranche Token", "JUNIOR", address(this));
 
         _startNewEpoch();
+    }
+
+    function totalAssetsInBaseVault() public view returns (uint256) {
+        return baseVault.totalAssets();
+    }
+
+    function currentPnL() public view returns (int256) {
+        uint256 total = baseVault.totalAssets();
+        uint256 principal = seniorDeposits + juniorDeposits;
+
+        if (total >= principal) {
+            return int256(total - principal);
+        } else {
+            return -int256(principal - total);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -78,10 +90,7 @@ contract TrancheVault is Ownable, ReentrancyGuard {
 
     function closeEpoch() external onlyOwner nonReentrant {
         require(epochOpen, "Already closed");
-        require(
-            block.timestamp >= epochStart + epochDuration,
-            "Epoch not finished"
-        );
+        require(block.timestamp >= epochStart + epochDuration, "Epoch not finished");
 
         epochOpen = false;
 
@@ -142,18 +151,13 @@ contract TrancheVault is Ownable, ReentrancyGuard {
         if (totalAssets >= totalPrincipal) {
             uint256 profit = totalAssets - totalPrincipal;
 
-            uint256 seniorFixedReturn =
-                (seniorDeposits * seniorReturnBps) / MAX_BPS;
+            uint256 seniorFixedReturn = (seniorDeposits * seniorReturnBps) / MAX_BPS;
 
             if (profit >= seniorFixedReturn) {
                 seniorFinalAssets = seniorDeposits + seniorFixedReturn;
-                juniorFinalAssets =
-                    totalAssets -
-                    seniorFinalAssets;
+                juniorFinalAssets = totalAssets - seniorFinalAssets;
             } else {
-                seniorFinalAssets =
-                    seniorDeposits +
-                    profit;
+                seniorFinalAssets = seniorDeposits + profit;
                 juniorFinalAssets = juniorDeposits;
             }
         } else {
@@ -161,14 +165,10 @@ contract TrancheVault is Ownable, ReentrancyGuard {
 
             if (loss >= juniorDeposits) {
                 juniorFinalAssets = 0;
-                seniorFinalAssets =
-                    totalAssets;
+                seniorFinalAssets = totalAssets;
             } else {
-                juniorFinalAssets =
-                    juniorDeposits -
-                    loss;
-                seniorFinalAssets =
-                    seniorDeposits;
+                juniorFinalAssets = juniorDeposits - loss;
+                seniorFinalAssets = seniorDeposits;
             }
         }
     }
@@ -183,8 +183,7 @@ contract TrancheVault is Ownable, ReentrancyGuard {
         uint256 totalSupply = seniorToken.totalSupply();
         require(totalSupply > 0, "No supply");
 
-        uint256 payout =
-            (amount * seniorFinalAssets) / totalSupply;
+        uint256 payout = (amount * seniorFinalAssets) / totalSupply;
 
         _burn(address(seniorToken), msg.sender, amount);
         asset.safeTransfer(msg.sender, payout);
@@ -196,8 +195,7 @@ contract TrancheVault is Ownable, ReentrancyGuard {
         uint256 totalSupply = juniorToken.totalSupply();
         require(totalSupply > 0, "No supply");
 
-        uint256 payout =
-            (amount * juniorFinalAssets) / totalSupply;
+        uint256 payout = (amount * juniorFinalAssets) / totalSupply;
 
         _burn(address(juniorToken), msg.sender, amount);
         asset.safeTransfer(msg.sender, payout);
